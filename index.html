@@ -241,6 +241,15 @@
             gap: 8px;
             flex-shrink: 0;
         }
+        .chat-footer.keyboard-open {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 480px;
+            box-sizing: border-box;
+        }
         .footer-left {
             display: flex;
             gap: 4px;
@@ -836,6 +845,22 @@
                 });
                 container.addEventListener("scroll", updateJumpBtns);
                 const footerInput = document.getElementById("footer-input");
+                const footer = document.querySelector(".chat-footer");
+                const vv = window.visualViewport;
+                let lastVh = vv ? vv.height : window.innerHeight;
+                if (vv) {
+                    vv.addEventListener("resize", () => {
+                        const diff = lastVh - vv.height;
+                        if (diff > 50) {
+                            footer.classList.add("keyboard-open");
+                            container.style.paddingBottom = `${footer.offsetHeight}px`;
+                        } else if (diff < -50) {
+                            footer.classList.remove("keyboard-open");
+                            container.style.paddingBottom = "";
+                        }
+                        lastVh = vv.height;
+                    });
+                }
                 footerInput.addEventListener("focus", () => {
                     setTimeout(() => {
                         footerInput.scrollIntoView({ behavior: "smooth", block: "center" });

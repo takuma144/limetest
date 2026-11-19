@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LINE風トークビューア（暗号化対応）</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #chat-screen {
+            display: none;
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            background: #7494c0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        .chat-header {
+            background: #7494c0;
+            color: white;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            font-size: 17px;
+            position: relative;
+            gap: 12px;
+        }
+        .search-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        /* 共通アイコンボタン */
+        .search-btn, .menu-btn, .search-clear, .search-back, .header-back,
+        .footer-action-btn, .footer-mic, .profile-close, .image-modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .search-btn:hover, .menu-btn:hover, .search-clear:hover,
+        .footer-action-btn:hover, .footer-mic:hover,
+        .profile-close:hover, .image-modal-close:hover {
+            opacity: 0.8;
+        }
+        .search-btn {
+            color: #131112;
+            font-size: 16px;
+            padding: 4px;
+        }
+        .menu-btn {
+            color: #131112;
+            font-size: 16px;
+            padding: 4px;
+            margin-left: 4px;
+        }
+        .search-input {
+            display: none;
+            width: 140px;
+            height: 28px;
+            padding: 6px 8px;
+            font-size: 14px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            color: #131112;
+            background: #f5f5f5;
+            box-sizing: border-box;
+        }
+        .search-input::placeholder {
+            color: #666;
+        }
+        .search-clear {
+            display: none;
+            color: #666;
+            font-size: 14px;
+            padding: 0 4px;
+        }
+        .search-back {
+            display: none;
+            font-size: 20px;
+            color: #131112;
+            padding: 4px;
+        }
+        .chat-header.search-active .search-back {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 28px;
+        }
+        .chat-header.search-active {
+            background: #fff;
+            color: #131112;
+            padding: 10px;
+        }
+        .chat-header.search-active .header-back,
+        .chat-header.search-active .header-name,
+        .chat-header.search-active .switch-anchor,
+        .chat-header.search-active .search-btn {
+            display: none;
+        }
+        .chat-header.search-active .search-wrapper {
+            flex: 1;
+            width: 100%;
+        }
+        .chat-header.search-active .search-input {
+            display: block;
+            flex: 1;
+            width: 100%;
+            max-width: none;
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            outline: none;
+            box-shadow: none;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 14px;
+            color: #131112;
+        }
+        .chat-header.search-active .search-input::placeholder {
+            color: #999;
+        }
+        .header-name {
+            color: #131112;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            line-height: 1;
+        }
+        .switch-anchor {
+            color: #131112;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: normal;
+            cursor: pointer;
+            line-height: 1;
+            margin-left: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .switch-anchor:hover {
+            opacity: 0.8;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .header-back {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #131112;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .header-back:hover {
+            opacity: 0.8;
+        }
+        .chat-container {
+            flex: 1;
+            padding: 10px;
+            margin-bottom: 45px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            scrollbar-width: none;
+        }
+        .chat-container::-webkit-scrollbar {
+            display: none;
+        }
+        .jump-btn {
+            position: absolute;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.9);
+            color: #131112;
+            border: none;
+            font-size: 14px;
+            font-weight: bold;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        .jump-btn.show {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+        .jump-btn-top { top: 60px; }
+        .jump-btn-bottom { bottom: 55px; }
+        .jump-btn:hover { background: #fff; opacity: 1; }
+        .chat-footer {
+            background: #fff;
+            color: #131112;
+            padding: 10px;
+            height: 45px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 480px;
+            z-index: 20;
+            gap: 8px;
+        }
+        .footer-left {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        .footer-action-btn {
+            color: #131112;
+            font-size: 16px;
+            padding: 4px;
+        }
+        .footer-input {
+            flex: 1;
+            min-width: 0;
+            padding: 6px 12px;
+            font-size: 14px;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            color: #131112;
+            background: #f5f5f5;
+            outline: none;
+        }
+        .footer-input::placeholder {
+            color: #999;
+        }
+        .footer-mic {
+            color: #131112;
+            font-size: 18px;
+            padding: 4px;
+        }
+        .date-label {
+            display: inline-block;
+            align-self: center;
+            background: rgba(0,0,0,0.2);
+            color: #fff;
+            font-size: 11px;
+            padding: 4px 12px;
+            border-radius: 999px;
+            margin: 8px 0 4px 0;
+            white-space: nowrap;
+        }
+        .message-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 4px;
+        }
+        .message-row.partner {
+            flex-direction: row;
+        }
+        .message-row.mine {
+            flex-direction: row-reverse;
+        }
+        .avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: #e5e5e5;
+        }
+        .bubble {
+            max-width: 70%;
+            padding: 9px 13px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.4;
+            word-break: break-all;
+            position: relative;
+            color: #000000;
+        }
+
+        .bubble a,
+        .bubble a:visited {
+            color: #0066cc;
+            text-decoration: underline;
+        }
+        .time {
+            font-size: 11px;
+            margin: 0;
+            white-space: nowrap;
+            color: rgba(0,0,0,0.7);
+        }
+        .time.mine,
+        .time.partner {
+            color: inherit;
+        }
+        .read {
+            font-size: 10px;
+            margin: 0 0 -2px 0;
+            white-space: nowrap;
+            color: rgba(0,0,0,0.7);
+        }
+        .time-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            align-self: flex-end;
+            margin-bottom: 2px;
+        }
+        .message-row.partner .bubble {
+            background: #ffffff;
+        }
+        .message-row.mine .bubble {
+            background: #85e249;
+        }
+        .chat-image {
+            max-width: 70%;
+            max-height: 50vh;
+            border-radius: 8px;
+            display: block;
+        }
+        .profile-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            max-height: 800px;
+            background: #000000;
+            opacity: 0;
+            visibility: hidden;
+            transition: transform 0.3s, opacity 0.3s, visibility 0.3s;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            box-sizing: border-box;
+            margin-left: auto;
+            margin-right: auto;
+            transform: translateX(100vw);
+        }
+        .profile-screen.open {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0);
+        }
+        .profile-screen .avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #e5e5e5;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .profile-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffffff;
+            margin-top: 24px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .profile-close {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 32px;
+            color: #ffffff;
+            padding: 4px 10px;
+        }
+        .profile-close:hover {
+            opacity: 0.8;
+        }
+        .image-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            background: #000000;
+            opacity: 0;
+            visibility: hidden;
+            transition: transform 0.3s, opacity 0.3s, visibility 0.3s;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: zoom-out;
+            transform: translateX(100vw);
+            overflow: hidden;
+            box-sizing: border-box;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .image-modal.open {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0);
+        }
+        .image-modal img {
+            max-width: 100%;
+            max-height: calc(100vh - 80px);
+            width: 100%;
+            object-fit: contain;
+            border-radius: 0;
+        }
+        .image-modal-close {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 32px;
+            color: #ffffff;
+            padding: 4px 10px;
+            z-index: 210;
+        }
+        .image-modal-close:hover {
+            opacity: 0.8;
+        }
+        #password-screen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            width: 100vw;
+            background: #f5f6f7;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .pw-card {
+            width: 100%;
+            max-width: 400px;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 32px;
+            box-sizing: border-box;
+        }
+        .pw-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .pw-logo {
+            color: #06c755;
+            font-weight: 800;
+            font-size: 36px;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+        .pw-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #111111;
+            margin: 0 0 8px 0;
+        }
+        .pw-desc {
+            font-size: 14px;
+            color: #8c8c8c;
+            margin: 0;
+        }
+        .pw-field {
+            margin-bottom: 24px;
+        }
+        .pw-label {
+            display: block;
+            font-size: 13px;
+            color: #8c8c8c;
+            margin-bottom: 8px;
+        }
+        .pw-input-wrapper {
+            position: relative;
+        }
+        .pw-input {
+            width: 100%;
+            height: 46px;
+            padding: 0 14px;
+            font-size: 15px;
+            border: 1px solid #dfdfdf;
+            border-radius: 6px;
+            box-sizing: border-box;
+            outline: none;
+            font-family: inherit;
+            color: #111111;
+        }
+        .pw-input:focus {
+            border-color: #06c755;
+        }
+        .pw-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #8c8c8c;
+            padding: 0;
+            line-height: 1;
+        }
+        .pw-toggle:hover {
+            color: #111111;
+        }
+        .pw-error {
+            color: #d50000;
+            font-size: 12px;
+            margin: 8px 0 0 0;
+            min-height: 1.2em;
+        }
+        .pw-btn {
+            width: 100%;
+            height: 48px;
+            font-size: 15px;
+            font-weight: bold;
+            color: #fff;
+            background: #06c755;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .pw-btn:hover:not(:disabled) {
+            background: #05ad4d;
+        }
+        .pw-btn:disabled {
+            background: #a3e8c0;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="password-screen">
+        <div class="pw-card">
+            <div class="pw-header">
+                <div class="pw-logo">LIME</div>
+                <h1 class="pw-title">ログイン</h1>
+                <p class="pw-desc">パスワードを入力してください</p>
+            </div>
+            <div class="pw-field">
+                <label class="pw-label">パスワード</label>
+                <div class="pw-input-wrapper">
+                    <input type="password" id="pw-input" class="pw-input" placeholder="パスワードを入力">
+                    <button type="button" id="pw-toggle" class="pw-toggle" aria-label="パスワードの表示切替"><i class="fa-solid fa-eye"></i></button>
+                </div>
+                <p id="pw-error" class="pw-error"></p>
+            </div>
+            <button id="pw-unlock" class="pw-btn">ログイン</button>
+        </div>
+    </div>
+
+    <div id="chat-screen" style="display: none;">
+        <div class="chat-header">
+        <div class="header-left">
+            <button id="header-back" class="header-back"><i class="fa-solid fa-angle-left"></i></button>
+            <button id="search-back" class="search-back"><i class="fa-solid fa-angle-left"></i></button>
+            <span class="header-name" id="header-name">相手</span>
+            <a href="#" id="switch-anchor" class="switch-anchor"><i class="fa-solid fa-arrow-right-arrow-left"></i></a>
+        </div>
+        <div class="search-wrapper">
+            <button id="search-btn" class="search-btn" title="検索"><i class="fa-solid fa-magnifying-glass"></i></button>
+            <button id="menu-btn" class="menu-btn" title="メニュー"><i class="fa-solid fa-bars"></i></button>
+            <input type="text" id="search-input" class="search-input" placeholder="メッセージ">
+            <button id="search-clear" class="search-clear" title="クリア"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        </div>
+        <div class="chat-container" id="chat-container"></div>
+    <div class="chat-footer">
+        <div class="footer-left">
+            <button class="footer-action-btn footer-plus" title="追加"><i class="fa-solid fa-plus"></i></button>
+            <button class="footer-action-btn footer-camera" title="カメラ"><i class="fa-solid fa-camera"></i></button>
+            <button class="footer-action-btn footer-image" title="画像"><i class="fa-solid fa-image"></i></button>
+        </div>
+        <input type="text" id="footer-input" class="footer-input">
+        <button class="footer-mic" title="音声入力"><i class="fa-solid fa-microphone"></i></button>
+    </div>
+        <button id="jump-top" class="jump-btn jump-btn-top" title="一番上へ"><i class="fa-solid fa-arrow-up"></i></button>
+        <button id="jump-bottom" class="jump-btn jump-btn-bottom" title="一番下へ"><i class="fa-solid fa-arrow-down"></i></button>
+    </div>
+
+    <div class="profile-screen" id="profile-screen">
+        <button class="profile-close" id="profile-close"><i class="fa-solid fa-xmark"></i></button>
+        <img class="avatar" id="profile-avatar" src="" alt="">
+        <h1 class="profile-name" id="profile-name"></h1>
+    </div>
+
+    <div class="image-modal" id="image-modal">
+        <button class="image-modal-close" id="image-modal-close"><i class="fa-solid fa-xmark"></i></button>
+        <img id="modal-image" src="" alt="">
+    </div>
+
+    <script>
+        const ENC_ALG = { name: "AES-GCM", length: 256 };
+        const DERIVE_ALG = { name: "PBKDF2", hash: "SHA-256", iterations: 200000 };
+
+        function strToBuf(str) { return new TextEncoder().encode(str); }
+        function bufToStr(buf) { return new TextDecoder().decode(buf); }
+        function base64ToBuf(b64) {
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return bytes;
+        }
+
+        async function deriveKey(password, salt) {
+            if (!crypto || !crypto.subtle) {
+                throw new Error("このブラウザ/環境では Web Crypto API (crypto.subtle) が利用できません。HTTPS または localhost で動作する Web サーバー経由で開いてください（file:// では動作しません）。");
+            }
+            const keyMaterial = await crypto.subtle.importKey(
+                "raw", strToBuf(password), { name: "PBKDF2" }, false, ["deriveKey"]
+            );
+            return await crypto.subtle.deriveKey(
+                { ...DERIVE_ALG, salt }, keyMaterial, ENC_ALG, false, ["encrypt", "decrypt"]
+            );
+        }
+
+        async function decryptChatData(encrypted, password) {
+            const salt = base64ToBuf(encrypted.salt);
+            const iv = base64ToBuf(encrypted.iv);
+            const ciphertext = base64ToBuf(encrypted.ciphertext);
+            const key = await deriveKey(password, salt);
+            const plaintextBuf = await crypto.subtle.decrypt(
+                { name: "AES-GCM", iv }, key, ciphertext
+            );
+            return JSON.parse(bufToStr(plaintextBuf));
+        }
+
+        async function loadEncryptedChat() {
+            const res = await fetch("encrypted_data.json");
+            if (!res.ok) throw new Error("encrypted_data.json の読み込みに失敗しました");
+            return await res.json();
+        }
+
+        let data = null;
+        let isSwitched = false;
+        let searchKeyword = "";
+        let container = null;
+        let jumpTop = null;
+        let jumpBottom = null;
+        function updateJumpBtns() {
+            if (!container) return;
+            const { scrollTop, scrollHeight, clientHeight } = container;
+            jumpTop.classList.toggle("show", scrollTop > 4);
+            jumpBottom.classList.toggle("show", scrollTop + clientHeight < scrollHeight - 4);
+        }
+
+        async function main() {
+            const encrypted = await loadEncryptedChat();
+            const pwScreen = document.getElementById("password-screen");
+            const pwInput = document.getElementById("pw-input");
+            const pwToggle = document.getElementById("pw-toggle");
+            const pwUnlock = document.getElementById("pw-unlock");
+            const pwError = document.getElementById("pw-error");
+
+            pwToggle.addEventListener("click", () => {
+                const isPassword = pwInput.type === "password";
+                pwInput.type = isPassword ? "text" : "password";
+                pwToggle.innerHTML = isPassword ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+            });
+
+            async function unlock() {
+                const password = pwInput.value;
+                if (!password) {
+                    pwError.textContent = "パスワードを入力してください";
+                    pwInput.focus();
+                    return;
+                }
+                pwUnlock.disabled = true;
+                pwError.textContent = "";
+                try {
+                    data = await decryptChatData(encrypted, password);
+                    pwScreen.style.display = "none";
+                    document.getElementById("chat-screen").style.display = "flex";
+                    setupChatUI();
+                } catch (e) {
+                    pwError.textContent = "復号に失敗しました: " + e.message;
+                    pwUnlock.disabled = false;
+                    pwUnlock.textContent = "ログイン";
+                    pwInput.focus();
+                }
+            }
+
+            pwUnlock.addEventListener("click", unlock);
+            pwInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") unlock();
+            });
+            pwInput.focus();
+
+            function logout() {
+                data = null;
+                isSwitched = false;
+                searchKeyword = "";
+                pwUnlock.disabled = false;
+                pwUnlock.textContent = "ログイン";
+                document.getElementById("chat-screen").style.display = "none";
+                pwScreen.style.display = "flex";
+                pwInput.value = "";
+                pwError.textContent = "";
+                pwInput.focus();
+                history.replaceState(null, "", location.pathname);
+            }
+
+            function setupChatUI() {
+                document.getElementById("switch-anchor").addEventListener("click", (e) => {
+                    e.preventDefault();
+                    isSwitched = !isSwitched;
+                    if (data && data.messages) {
+                        const me = getCurrentUser();
+                        data.messages.forEach(msg => {
+                            if (msg.sender === me) {
+                                msg.read = true;
+                            }
+                        });
+                    }
+                    renderChatData();
+                    updateJumpBtns();
+                });
+                const searchBack = document.getElementById("search-back");
+                const searchBtn = document.getElementById("search-btn");
+                const menuBtn = document.getElementById("menu-btn");
+                const searchInput = document.getElementById("search-input");
+                const searchClear = document.getElementById("search-clear");
+                const header = document.querySelector(".chat-header");
+                container = document.getElementById("chat-container");
+                function exitSearch() {
+                    header.classList.remove("search-active");
+                    searchInput.style.display = "none";
+                    searchClear.style.display = "none";
+                    menuBtn.style.display = "flex";
+                    searchInput.value = "";
+                    searchKeyword = "";
+                    renderChatData();
+                    updateJumpBtns();
+                }
+                searchBack.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    exitSearch();
+                });
+                searchBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    menuBtn.style.display = "none";
+                    if (header.classList.contains("search-active")) {
+                        exitSearch();
+                    } else {
+                        header.classList.add("search-active");
+                        searchInput.style.display = "block";
+                        searchInput.focus();
+                    }
+                });
+                searchInput.addEventListener("input", () => {
+                    searchKeyword = searchInput.value;
+                    searchClear.style.display = searchInput.value ? "inline-block" : "none";
+                    renderChatData();
+                    updateJumpBtns();
+                });
+                searchClear.addEventListener("click", () => {
+                    searchInput.value = "";
+                    searchKeyword = "";
+                    searchClear.style.display = "none";
+                    renderChatData();
+                    updateJumpBtns();
+                    searchInput.focus();
+                });
+                document.getElementById("header-name").addEventListener("click", () => {
+                    openProfile(getPartner());
+                });
+                document.getElementById("header-back").addEventListener("click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    logout();
+                });
+                jumpTop = document.getElementById("jump-top");
+                jumpBottom = document.getElementById("jump-bottom");
+                jumpTop.addEventListener("click", () => {
+                    container.scrollTop = 0;
+                    jumpTop.classList.remove("show");
+                    jumpBottom.classList.remove("show");
+                });
+                jumpBottom.addEventListener("click", () => {
+                    container.scrollTop = container.scrollHeight;
+                    jumpTop.classList.remove("show");
+                    jumpBottom.classList.remove("show");
+                });
+                container.addEventListener("scroll", updateJumpBtns);
+                const footerInput = document.getElementById("footer-input");
+                const vv = window.visualViewport;
+                if (vv) {
+                    let lastHeight = vv.height;
+                    vv.addEventListener("resize", () => {
+                        const diff = lastHeight - vv.height;
+                        if (diff > 0) {
+                            container.style.paddingBottom = `${footerInput.offsetHeight + 10}px`;
+                        } else {
+                            container.style.paddingBottom = "";
+                        }
+                        lastHeight = vv.height;
+                    });
+                }
+                footerInput.addEventListener("focus", () => {
+                    setTimeout(() => {
+                        footerInput.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }, 100);
+                });
+                footerInput.addEventListener("keydown", (e) => {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                });
+                if (data && data.messages) {
+                    const me = getCurrentUser();
+                    data.messages.forEach(msg => {
+                        if (msg.sender === me) {
+                            msg.read = true;
+                        }
+                    });
+                }
+                renderChatData();
+                updateJumpBtns();
+            }
+        }
+
+        function formatNow() {
+            const now = new Date();
+            return `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById("footer-input");
+            const text = input.value.trim();
+            if (!text) return;
+            data.messages.push({
+                sender: getCurrentUser(),
+                type: "text",
+                text: text,
+                time: formatNow(),
+                read: false
+            });
+            searchKeyword = "";
+            const searchInput = document.getElementById("search-input");
+            if (searchInput) {
+                searchInput.value = "";
+                const searchClear = document.getElementById("search-clear");
+                if (searchClear) searchClear.style.display = "none";
+            }
+            renderChatData();
+            container.scrollTop = container.scrollHeight;
+            updateJumpBtns();
+            input.value = "";
+            input.focus();
+        }
+
+        function getCurrentUser() {
+            return isSwitched ? "user2" : "user1";
+        }
+        function getPartner() {
+            return isSwitched ? "user1" : "user2";
+        }
+
+        const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+        function parseTime(t) {
+            const m = t.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
+            if (!m) return null;
+            return {
+                month: parseInt(m[1], 10),
+                day: parseInt(m[2], 10),
+                hour: parseInt(m[3], 10),
+                minute: parseInt(m[4], 10)
+            };
+        }
+
+        function dateKeyOf(pt) { return `${pt.month}/${pt.day}`; }
+
+        function dateLabelOf(pt) {
+            const now = new Date();
+            const d = new Date(now.getFullYear(), pt.month - 1, pt.day);
+            return `${d.getFullYear()}年${pt.month}月${pt.day}日(${WEEKDAYS[d.getDay()]})`;
+        }
+
+        function timeLabelOf(pt) {
+            const ampm = pt.hour < 12 ? "午前" : "午後";
+            const h12 = pt.hour % 12;
+            return `${ampm}${h12}:${String(pt.minute).padStart(2, "0")}`;
+        }
+
+        function renderChatData() {
+            const container = document.getElementById("chat-container");
+            const headerName = document.getElementById("header-name");
+            container.innerHTML = "";
+
+            const partner = getPartner();
+            headerName.textContent = data.users[partner].name;
+
+            let prevKey = null;
+
+            const keyword = searchKeyword.toLowerCase();
+            const filtered = data.messages.filter(msg => {
+                if (!keyword) return true;
+                if (msg.type === "text") return msg.text.toLowerCase().includes(keyword);
+                return false;
+            });
+
+            filtered.forEach(msg => {
+                const pt = parseTime(msg.time);
+                if (!pt) return;
+
+                const key = dateKeyOf(pt);
+                if (key !== prevKey) {
+                    const div = document.createElement("div");
+                    div.className = "date-label";
+                    div.textContent = dateLabelOf(pt);
+                    container.appendChild(div);
+                    prevKey = key;
+                }
+
+                const isMine = msg.sender === getCurrentUser();
+                const row = document.createElement("div");
+                row.className = `message-row ${isMine ? "mine" : "partner"}`;
+
+                if (!isMine) {
+                    const avatar = document.createElement("img");
+                    avatar.className = "avatar";
+                    avatar.src = data.users[msg.sender].icon;
+                    avatar.alt = data.users[msg.sender].name;
+                    avatar.style.cursor = "pointer";
+                    avatar.dataset.userId = msg.sender;
+                    avatar.addEventListener("click", () => openProfile(msg.sender));
+                    row.appendChild(avatar);
+                }
+
+                const bubble = document.createElement("div");
+                bubble.className = "bubble";
+
+                if (msg.type === "text") {
+                    const lines = msg.text.split("\n");
+                    lines.forEach((line, i) => {
+                        if (i > 0) bubble.appendChild(document.createElement("br"));
+                        const urlRegex = /(https?:\/\/[^\s]+)/g;
+                        let lastIndex = 0;
+                        let match;
+                        while ((match = urlRegex.exec(line)) !== null) {
+                            if (match.index > lastIndex) {
+                                bubble.appendChild(document.createTextNode(line.slice(lastIndex, match.index)));
+                            }
+                            const a = document.createElement("a");
+                            a.href = match[1];
+                            a.textContent = match[1];
+                            a.target = "_blank";
+                            a.rel = "noopener noreferrer";
+                            bubble.appendChild(a);
+                            lastIndex = urlRegex.lastIndex;
+                        }
+                        if (lastIndex < line.length) {
+                            bubble.appendChild(document.createTextNode(line.slice(lastIndex)));
+                        }
+                    });
+                    row.appendChild(bubble);
+                } else if (msg.type === "image") {
+                    const img = document.createElement("img");
+                    img.src = msg.imageUrl ?? msg.data;
+                    img.className = "chat-image";
+                    img.alt = "画像";
+                    row.appendChild(img);
+                }
+
+                const timeWrapper = document.createElement("div");
+                timeWrapper.className = "time-wrapper";
+
+                if (msg.read && isMine) {
+                    const read = document.createElement("span");
+                    read.className = "read";
+                    read.textContent = "既読";
+                    timeWrapper.appendChild(read);
+                }
+
+                const time = document.createElement("span");
+                time.className = `time ${isMine ? "mine" : "partner"}`;
+                time.textContent = timeLabelOf(pt);
+                timeWrapper.appendChild(time);
+
+                row.appendChild(timeWrapper);
+                container.appendChild(row);
+            });
+        }
+
+        let currentProfileUserId = null;
+
+        function openProfile(userId) {
+            const user = data.users[userId];
+            if (!user) return;
+            currentProfileUserId = userId;
+            document.getElementById("profile-avatar").src = user.icon;
+            document.getElementById("profile-avatar").alt = user.name;
+            document.getElementById("profile-name").textContent = user.name;
+            document.getElementById("profile-screen").classList.add("open");
+            history.pushState({ view: "profile" }, "", "#profile");
+        }
+
+        function closeProfile() {
+            document.getElementById("profile-screen").classList.remove("open");
+            document.getElementById("image-modal").classList.remove("open");
+            if (history.state?.view === "profile") history.back();
+        }
+
+        function openImageModal(src) {
+            document.getElementById("modal-image").src = src;
+            document.getElementById("image-modal").classList.add("open");
+            history.pushState({ view: "modal" }, "", "#modal");
+        }
+
+        function closeImageModal() {
+            document.getElementById("image-modal").classList.remove("open");
+        }
+
+        document.getElementById("profile-close").addEventListener("click", closeProfile);
+        document.getElementById("profile-screen").addEventListener("click", (e) => {
+            if (e.target === document.getElementById("profile-screen")) closeProfile();
+        });
+        document.getElementById("profile-avatar").addEventListener("click", (e) => {
+            e.stopPropagation();
+            openImageModal(document.getElementById("profile-avatar").src);
+        });
+        document.getElementById("image-modal-close").addEventListener("click", (e) => {
+            e.stopPropagation();
+            closeImageModal();
+        });
+        document.getElementById("image-modal").addEventListener("click", closeImageModal);
+
+        window.addEventListener("popstate", () => {
+            const modal = document.getElementById("image-modal");
+            const profile = document.getElementById("profile-screen");
+            const chat = document.getElementById("chat-screen");
+            if (modal.classList.contains("open")) {
+                closeImageModal();
+            } else if (profile.classList.contains("open")) {
+                closeProfile();
+            } else if (chat.style.display === "flex") {
+                logout();
+            }
+        });
+
+        main().catch(err => {
+            alert(err.message);
+        });
+    </script>
+</body>
+</html>
